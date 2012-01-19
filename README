@@ -1,0 +1,57 @@
+The point of this project is to allow javascript client code to interact with arbitrary zeromq services in the backend, with minimal server side configuration.  In  general, when people write websocket code, they write alot of application specific web socket code in whichever web framework they are using.  We want to push most of the application logic into generic zmq processes, with the only application code running in the web server being the code necessary to authenticate users and decide who can access which resources.
+
+Zmq Web Bridge, is a project that allows javascript running in the browser to connect to zmq.REP and zmq.PUB  sockets running on a server, via a python gevent proxy.
+The javascript client code sets up a websocket, which communicates with the python gevent proxy, which forwards communications to various zmq backends.  This package also provides a basic framework for authentication, to determine who can access which zmq resources.
+
+
+Target Syntax
+
+js:
+
+var ctx = zmq.Context("ws://localhost:8000/")
+var req_socket = ctx.Socket(zmq.REQ, "tcp://0.0.0.0/9999",
+                                    {'username' : hugo, 'password' : 'monkey'})
+req_socket.send({'myrequest' : 'hello}, function(x){
+			     console.log('this is my callback')
+			     console.log(['data from server', x])  
+                           })
+var sub_socket = ctx.Socket(zmq.SUB, "tcp://0.0.0.0/9000",
+                           {'username' : hugo, 'password' : 'monkey', 'filter' : 'hugomessages'})
+sub_socket.callback(function(x){console.log(x)})
+
+sever side python:
+generic, zmq code, which is not apart of this framework:
+
+------------------
+import zmq
+ctx = zmq.Context()
+s = ctx.Socket(zmq.REP)
+s.bind('tcp://0.0.0.0/9999')
+while(1):
+    data = s.recv()
+    s.send('got this %s' % data)
+
+------------------
+import zmq
+ctx = zmq.Context()
+s = ctx.Socket(zmq.PUB)
+s.bind('tcp://0.0.0.0/9000')
+import time
+c = 0
+while(1):
+    s.send(str(c))
+    c += 1
+    time.sleep(1)
+
+------------------
+import gevent
+gevent.monkey_patch_all()
+
+class MyForwarder(zmqweb.Forwarder):
+    def websocket_allowed(self, data):
+        return True
+    def zmq_allowed(self, zmq_url, options):
+        return True
+
+a = MyForwarder()
+a.serve_forever()
