@@ -49,8 +49,12 @@ gevent.monkey_patch_all()
 
 class MyForwarder(zmqweb.Forwarder):
     def websocket_allowed(self, data):
+        #this code determines whether a websocket connection
+        #is even allowed to occur    
         return True
-    def zmq_allowed(self, zmq_url, options):
+    def zmq_allowed(self, zmq_uri, options):
+        #this code determines whether the specific user can
+        #access the specified zmq resources
         return True
 
 a = MyForwarder()
