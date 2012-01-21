@@ -94,10 +94,10 @@ class ReqGateway(ZmqGateway):
             self.handle_request(msg)
             
             
-class BridgeWebSocketHandler(WebProxyHandler):
+class BridgeWebProxyHandler(WebProxyHandler):
     
     def __init__(self, ws, gateway_factory):
-        super(BridgeWebSocketHandler, self).__init__()
+        super(BridgeWebProxyHandler, self).__init__()
         self.ws = ws
         self.gateway_factory = gateway_factory
         
@@ -124,7 +124,7 @@ class BridgeWebSocketHandler(WebProxyHandler):
         content = msg.get('content')
         
         if msg_type == 'connect':
-            if self.zmq_allowed(msg):
+            if self.zmq_allowed(content):
                 self.connect(identity, content)
                 content = simplejson.dumps({'status' : 'success'})
                 self.send(identity, content)
@@ -185,6 +185,7 @@ class SubSocketProxy(SocketProxy):
         self.msgfilter = msgfilter
         
 class WsgiHandler(object):
+    bridge_class = BridgeWebProxyHandler
     def __init__(self):
         self.zmq_gateway_factory = ZmqGatewayFactory()
         
@@ -193,8 +194,8 @@ class WsgiHandler(object):
     
     def wsgi_handle(self, environ, start_response):
         if 'wsgi.websocket' in environ and self.websocket_allowed(environ):
-            handler = BridgeWebSocketHandler(environ['wsgi.websocket'],
-                                       self.zmq_gateway_factory)
+            handler = self.bridge_class(environ['wsgi.websocket'],
+                                        self.zmq_gateway_factory)
             handler.run()
         else:
             start_response("404 Not Found", [])

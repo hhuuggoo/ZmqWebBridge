@@ -88,7 +88,6 @@ zmq.ReqSocket = function(ctx){
 zmq.ReqSocket.prototype = new zmq.Socket();
 zmq.ReqSocket.prototype.send = function(msg, callback, msg_type){
     var msgobj = this.get_message(msg, msg_type)
-    console.log(msgobj);
     this._send(JSON.stringify(msgobj), callback);
 }
 zmq.ReqSocket.prototype._send = function(msg, callback){
@@ -128,7 +127,7 @@ zmq.ReqSocket.prototype.connect = function(zmq_conn_string, auth){
 	    that.connected = true;
 	}else{
 	    that.connected = false;
-	    alert ('problem connecting');
+	    //alert ('problem connecting');
 	}
     }, 'connect');
 }
