@@ -60,17 +60,31 @@ while(True):
         time.sleep(1)
 ------------------
 import gevent
-gevent.monkey_patch_all()
+from gevent import pywsgi
+from geventwebsocket.handler import WebSocketHandler
+import logging
+import bridge
+import simplejson
+logging.basicConfig(level=logging.DEBUG)
+class MyBridgeClass(bridge.BridgeWebProxyHandler):
+    def zmq_allowed(self, params):
+        params = simplejson.loads(params)
+        zmq_conn_string = params['zmq_conn_string']
+        socket_type = params['socket_type']
+        return params['username'] == 'hugo'
+        
 
-class MyForwarder(zmqweb.Forwarder):
-    def websocket_allowed(self, data):
-        #this code determines whether a websocket connection
-        #is even allowed to occur    
-        return True
-    def zmq_allowed(self, zmq_uri, options):
-        #this code determines whether the specific user can
-        #access the specified zmq resources
+class MyWsgiHandler(bridge.WsgiHandler):
+    bridge_class = MyBridgeClass
+    def websocket_allowed(self, environ):
+        #you can add logic here to do auth
         return True
 
-a = MyForwarder()
-a.serve_forever()
+
+app = MyWsgiHandler()
+server = pywsgi.WSGIServer(('0.0.0.0', 8000), app.wsgi_handle,
+                           # keyfile='/etc/nginx/server.key',
+                           # certfile='/etc/nginx/server.crt',
+                           handler_class=WebSocketHandler)
+server.serve_forever()
+
