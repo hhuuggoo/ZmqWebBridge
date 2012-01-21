@@ -19,30 +19,49 @@ zmq.uuid = function () {
 zmq.Context = function(ws_conn_string){
     //zmq context proxy.  contains a websocketconnection
     //routes messages to fake zmq sockets on the js side
-    self.unregistered_sockets = {}
-    self.sockets = {}
+    this.unregistered_sockets = {}
+    this.sockets = {}
+    var that = this;
     try {
 	this.s = new WebSocket(ws_conn_string);
     }
     catch (e) {
 	this.s = new MozWebSocket(ws_conn_string);
     }
-    s.onmessage = function(msg){
-	var msgobj = JSON.parse(msg);
-	this.sockets[msgobj['identity']]._handle(msgobj['content'])
+    this.s.onmessage = function(msg){
+	var msgobj = JSON.parse(msg.data);
+	that.sockets[msgobj['identity']]._handle(msgobj['content'])
     }
+    this.s.onopen = function(){
+	that.connected = true;
+	$.map(that.send_buffer, function(x){
+	    that.s.send(x);
+	});
+	that.send_buffer = [];
+    }
+    this.connected = false;
+    this.send_buffer = [];
 }
-
 zmq.Context.prototype.Socket = function(socket_type){
     //contexts are also a factory for sockets, just like
     //in normal zeromq
+    var fakesocket;
     if (socket_type === zmq.SUB){
-	return zmq.SubSocket(this);
+	fakesocket = new zmq.SubSocket(this);
     }else{
-	return zmq.ReqSocket(this);
+	fakesocket =  new zmq.ReqSocket(this);
     }
+    this.sockets[fakesocket.identity] = fakesocket;
+    return fakesocket;
 }
 
+zmq.Context.prototype.send = function(msg){
+    if (this.connected){
+	this.s.send(msg);
+    }else{
+	this.send_buffer.push(msg);
+    }
+}
 zmq.Socket = function(ctx){
     this.ctx = ctx
     this.identity = zmq.uuid();
@@ -51,7 +70,7 @@ zmq.Socket.prototype.get_message = function(msg, msg_type){
     //your message should be a string
     //constructs a message object, as json
     //this will be serialized before it goes to the wire
-    if(msg_type){
+    if(!msg_type){
 	msg_type = 'userlevel'
     }
     return {
@@ -61,16 +80,18 @@ zmq.Socket.prototype.get_message = function(msg, msg_type){
     }
 }
 zmq.ReqSocket = function(ctx){
-    zmq.Socket.call(this, [ctx]);
+    zmq.Socket.call(this, ctx);
     this.reqrep_buffer = [];
     this.busy = false;
     this.socket_type = zmq.REQ;
 }
 zmq.ReqSocket.prototype = new zmq.Socket();
-zmq.ReqSocket.send = function(msg, callback){
-    this._send(this.get_message(msg), callback);
+zmq.ReqSocket.prototype.send = function(msg, callback, msg_type){
+    var msgobj = this.get_message(msg, msg_type)
+    console.log(msgobj);
+    this._send(JSON.stringify(msgobj), callback);
 }
-zmq.ReqSocket._send = function(msg, callback){
+zmq.ReqSocket.prototype._send = function(msg, callback){
     this.reqrep_buffer.push([msg, callback]);
     if (this.busy){
 	return
@@ -78,17 +99,17 @@ zmq.ReqSocket._send = function(msg, callback){
 	this._send_buffer();
     }
 }
-zmq.ReqSocket._send_buffer = function(){
+zmq.ReqSocket.prototype._send_buffer = function(){
     if (this.busy || this.reqrep_buffer.length == 0){
 	return
     }else{
 	this.busy = true;
-	this.ctx.s.send(this.reqrep_buffer[0][0]);
+	this.ctx.send(this.reqrep_buffer[0][0]);
 	return
     }
 }
 
-zmq.ReqSocket._handle = function(msg){
+zmq.ReqSocket.prototype._handle = function(msg){
     this.busy = false;
     var callback = this.reqrep_buffer[0][1]
     this.reqrep_buffer = this.reqrep_buffer.slice(1);
@@ -99,7 +120,7 @@ zmq.ReqSocket._handle = function(msg){
 zmq.ReqSocket.prototype.connect = function(zmq_conn_string, auth){
     auth['zmq_conn_string'] = zmq_conn_string;
     auth['socket_type'] = this.socket_type;
-    var msg = this.get_message(JSON.stringify(auth), 'connect')
+    var msg = JSON.stringify(auth)
     var that = this;
     this.send(msg, function(x){
 	var status = JSON.parse(x);
@@ -109,20 +130,21 @@ zmq.ReqSocket.prototype.connect = function(zmq_conn_string, auth){
 	    that.connected = false;
 	    alert ('problem connecting');
 	}
-    })
+    }, 'connect');
 }
 
 zmq.SubSocket = function(ctx){
-    zmq.ReqSocket.call(this, [ctx]);
+    zmq.ReqSocket.call(this, ctx);
+    this.socket_type = zmq.SUB;
 }
 //prototype from req socket, because we need the auth functionality
 zmq.SubSocket.prototype = new zmq.ReqSocket();
-zmq.SubSocket._handle = function(msg){
+zmq.SubSocket.prototype._handle = function(msg){
     //only used for connect
     if (!this.connected){
-	zmq.ReqSocket._handle.call(this, [msg]);
+	zmq.ReqSocket.prototype._handle.call(this, msg);
     }else{
-	this.on_message(msg);
+	this.onmessage(msg);
     }
 }
 
