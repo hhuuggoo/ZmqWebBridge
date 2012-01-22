@@ -55,7 +55,7 @@ class ZmqGateway(WebProxyHandler):
         #what exception is thrown here?
         except Exception as e:
             log.exception(e)
-            self.deregister(k)
+            self.deregister(identity)
             
 class SubGateway(ZmqGateway):
     def __init__(self, zmq_conn_string, ctx=None):
@@ -67,6 +67,7 @@ class SubGateway(ZmqGateway):
     def run(self):
         while(True):
             msg = self.s.recv()
+            log.debug('subgateway, received %s', msg)
             for k in self.proxies.keys():
                 if self.proxies[k].msgfilter in msg:
                     self.send_proxy(k, msg)
@@ -81,7 +82,7 @@ class ReqGateway(ZmqGateway):
         #append null string to front of message, just like REQ
         #embed identity the same way
         self.s.send_multipart([str(identity), '', str(msg)])
-        
+        log.debug('reqgateway, sent %s', msg)
     def handle_request(self, msg):
         #strip off the trailing string
         identity = msg[0]
@@ -91,6 +92,7 @@ class ReqGateway(ZmqGateway):
     def run(self):
         while True:
             msg = self.s.recv_multipart()
+            log.debug('reqgateway, received %s', msg)
             self.handle_request(msg)
             
             
@@ -143,11 +145,13 @@ class BridgeWebProxyHandler(WebProxyHandler):
             self.deregister(identity)
 
     def send(self, identity, msg):
+        log.debug('ws sent %s', msg)
         self.ws.send(simplejson.dumps({'identity' : identity,
                                        'content' : msg}))
     def run(self):
         while True:
             msg = self.ws.receive()
+            log.debug('ws received %s', msg)
             if msg is None:
                 self.close()
                 break
@@ -205,8 +209,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     app = WsgiHandler()
     server = pywsgi.WSGIServer(('0.0.0.0', 8000), app.wsgi_handle,
-                               keyfile='/etc/nginx/server.key',
-                               certfile='/etc/nginx/server.crt',
+                               # keyfile='/etc/nginx/server.key',
+                               # certfile='/etc/nginx/server.crt',
                                handler_class=WebSocketHandler)
     server.serve_forever()
 
