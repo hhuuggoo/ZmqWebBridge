@@ -3,6 +3,12 @@ The point of this project is to allow javascript client code to interact with ar
 Zmq Web Bridge, is a project that allows javascript running in the browser to connect to zmq.REP and zmq.PUB  sockets running on a server, via a python gevent proxy.
 The javascript client code sets up a websocket, which communicates with the python gevent proxy, which forwards communications to various zmq backends.  This package also provides a basic framework for authentication, to determine who can access which zmq resources.
 
+* you need to know what you're doing before you use this in production, zeromq isn't written for public facing apps, the way most web frameworks are created some possible problems that aren't apparent at first glance
+
+1.  if a client sends a malformed zmq connection string, your bridge will fail (this failure occurs on the native code side, so we can't catch it in python)
+2.  if you use a REP socket, and you call socket.recv_json(), and some random client in the world is NOT sending you json, it'll bust your REQ REP ping pong cycle.  so you have to handle those types of things accordingly.
+
+* I recently tried to deploy this on another machine, and it would not work with the pyzmq installed there, I tracked it down to some versioning issues which caused XREQs and XREPs not to function properly, reinstalling fresh pyzmq from git (and stable zeromq 2.1) solved the issue.  I'll try adding a test (there are no tests yet) which will tell you if your XREQs and XREPs are working properly
 
 Syntax
 
