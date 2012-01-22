@@ -37,7 +37,10 @@ class WebProxyHandler(object):
         self.proxies[identity] = proxy
 
     def deregister(self, identity):
-        self.proxies.pop(identity)
+        try:
+            self.proxies.pop(identity)
+        except KeyError as e:
+            pass
 
     def close(self):
         for v in self.proxies.values():
@@ -67,10 +70,14 @@ class SubGateway(ZmqGateway):
     def run(self):
         while(True):
             msg = self.s.recv()
-            log.debug('subgateway, received %s', msg)
-            for k in self.proxies.keys():
-                if self.proxies[k].msgfilter in msg:
-                    self.send_proxy(k, msg)
+            try:
+                log.debug('subgateway, received %s', msg)
+                for k in self.proxies.keys():
+                    if self.proxies[k].msgfilter in msg:
+                        self.send_proxy(k, msg)
+            except Exception as e:
+                log.exception(e)
+                continue
 
 class ReqGateway(ZmqGateway):
     def __init__(self, zmq_conn_string, ctx=None):
@@ -83,6 +90,7 @@ class ReqGateway(ZmqGateway):
         #embed identity the same way
         self.s.send_multipart([str(identity), '', str(msg)])
         log.debug('reqgateway, sent %s', msg)
+
     def handle_request(self, msg):
         #strip off the trailing string
         identity = msg[0]
@@ -92,8 +100,12 @@ class ReqGateway(ZmqGateway):
     def run(self):
         while True:
             msg = self.s.recv_multipart()
-            log.debug('reqgateway, received %s', msg)
-            self.handle_request(msg)
+            try:
+                log.debug('reqgateway, received %s', msg)
+                self.handle_request(msg)
+            except Exception as e:
+                log.exception(e)
+                continue
             
             
 class BridgeWebProxyHandler(WebProxyHandler):
