@@ -29,6 +29,13 @@ class ZmqGatewayFactory(object):
             spawn(self.gateways[socket_type, zmq_conn_string].run)
             return self.gateways[socket_type, zmq_conn_string]
 
+    def shutdown(self):
+        """
+        Close all sockets associated with this context, and then
+        terminate the context.
+        """
+        self.ctx.destroy()
+
 class WebProxyHandler(object):
     def __init__(self):
         self.proxies = {}
@@ -217,6 +224,14 @@ class WsgiHandler(object):
             start_response("404 Not Found", [])
             return []
 
+    def __del__(self):
+        """
+        Upon destruction shut down any open sockets, don't rely
+        on the garbage collector which can leave sockets
+        dangling open.
+        """
+        self.zmq_gateway_factory.shutdown()
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     app = WsgiHandler()
@@ -224,5 +239,8 @@ if __name__ == "__main__":
                                # keyfile='/etc/nginx/server.key',
                                # certfile='/etc/nginx/server.crt',
                                handler_class=WebSocketHandler)
-    server.serve_forever()
-
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print 'Shutting down gracefully.'
+        server.kill()
