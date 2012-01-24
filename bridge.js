@@ -19,7 +19,6 @@ zmq.uuid = function () {
 zmq.Context = function(ws_conn_string){
     //zmq context proxy.  contains a websocketconnection
     //routes messages to fake zmq sockets on the js side
-    this.unregistered_sockets = {}
     this.sockets = {}
     var that = this;
     try {
