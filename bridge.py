@@ -9,6 +9,9 @@ from gevent import spawn
 
 # demo app
 class ZmqGatewayFactory(object):
+    """ factory returns an existing gateway if we have one,
+    or creates a new one and starts it if we don't
+    """
     def __init__(self):
         self.gateways = {}
         self.ctx = zmq.Context()
@@ -37,6 +40,9 @@ class ZmqGatewayFactory(object):
         self.ctx.destroy()
 
 class WebProxyHandler(object):
+    """ generic handler which works with proxy objects, proxies can
+    register with WebProxyHandler, and deregister with them
+    """
     def __init__(self):
         self.proxies = {}
         
@@ -54,6 +60,8 @@ class WebProxyHandler(object):
             v.deregister()
             
 class ZmqGateway(WebProxyHandler):
+    """ proxy handler which handles the zeromq side of things.
+    """
     def __init__(self, zmq_conn_string, ctx=None):
         super(ZmqGateway, self).__init__()
         self.zmq_conn_string = zmq_conn_string
@@ -76,7 +84,7 @@ class SubGateway(ZmqGateway):
 
     def run(self):
         while(True):
-            msg = self.s.recv()
+            msg = self.s.recv(copy=True)
             try:
                 log.debug('subgateway, received %s', msg)
                 for k in self.proxies.keys():
@@ -106,7 +114,7 @@ class ReqGateway(ZmqGateway):
 
     def run(self):
         while True:
-            msg = self.s.recv_multipart()
+            msg = self.s.recv_multipart(copy=True)
             try:
                 log.debug('reqgateway, received %s', msg)
                 self.handle_request(msg)
@@ -114,8 +122,15 @@ class ReqGateway(ZmqGateway):
                 log.exception(e)
                 continue
             
-            
 class BridgeWebProxyHandler(WebProxyHandler):
+    """
+    should rename this to BridgeWebSocketGateway
+    proxy handler which handles the web socket side of things.
+    you have one of these per web socket connection.  it listens on the web
+    socket, and when a connection request is received, grabs the appropriate
+    zeromq gateway from the factory.  It also registers the proxy with this
+    object nad the zeromq gateway
+    """
     
     def __init__(self, ws, gateway_factory):
         super(BridgeWebProxyHandler, self).__init__()
@@ -135,7 +150,6 @@ class BridgeWebProxyHandler(WebProxyHandler):
             proxy = SubSocketProxy(identity, content.get('msgfilter', ''))
         gateway = self.gateway_factory.get(socket_type, zmq_conn_string)
         proxy.register(self, gateway)
-        self.register(identity, proxy)
                 
     def handle_request(self, msg):
         msg = simplejson.loads(msg)
@@ -176,7 +190,15 @@ class BridgeWebProxyHandler(WebProxyHandler):
                 break
             self.handle_request(msg)
 
-    
+"""these proxy objects below are dumb objects.  all they do is manage
+relationships with their reqpective websocket and zeromq gateways.
+the gateways use this object to get to the appropriate opposing gateway
+SocketProxy
+ReqSocketProxy
+SubSocketProxy
+you have one instance of this, for every fake zeromq socket you have on the
+js side
+"""
 class SocketProxy(object):
 
     def __init__(self, identity):
@@ -201,12 +223,18 @@ class SocketProxy(object):
 class ReqSocketProxy(SocketProxy):
     socket_type = zmq.REQ
 
+
 class SubSocketProxy(SocketProxy):
     socket_type = zmq.SUB
     def __init__(self, identity, msgfilter):
         super(SubSocketProxy, self).__init__(identity)
         self.msgfilter = msgfilter
-        
+
+
+
+"""
+Gevent wsgi handler - the main server.  once instnace of this per process
+"""
 class WsgiHandler(object):
     bridge_class = BridgeWebProxyHandler
     def __init__(self):
