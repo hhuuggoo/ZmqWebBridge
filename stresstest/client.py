@@ -15,9 +15,6 @@ import simplejson
 logging.basicConfig(level=logging.INFO)
 import uuid
 
-import test_utils
-
-
 with open("rrports.txt","r") as f:
     ports = [int(x) for x in f.read().split(",")]
 results = {}
