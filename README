@@ -82,6 +82,7 @@ class MyBridgeClass(bridge.BridgeWebProxyHandler):
 
 class MyWsgiHandler(bridge.WsgiHandler):
     bridge_class = MyBridgeClass
+    HWM = 100 #zmq HWM must be set here, and on your server
     def websocket_allowed(self, environ):
         #you can add logic here to do auth
         return True

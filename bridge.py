@@ -6,16 +6,17 @@ import logging
 log = logging.getLogger(__name__)
 import simplejson
 from gevent import spawn
+import Queue
 
 # demo app
 class ZmqGatewayFactory(object):
     """ factory returns an existing gateway if we have one,
     or creates a new one and starts it if we don't
     """
-    def __init__(self):
+    def __init__(self, HWM=100):
         self.gateways = {}
         self.ctx = zmq.Context()
-        
+        self.HWM = HWM
     def get(self, socket_type, zmq_conn_string):
         if (socket_type, zmq_conn_string) in self.gateways:
             gateway =  self.gateways[socket_type, zmq_conn_string]
@@ -24,12 +25,16 @@ class ZmqGatewayFactory(object):
             if socket_type == zmq.REQ:
                 log.debug("spawning req socket %s" ,zmq_conn_string) 
                 self.gateways[socket_type, zmq_conn_string] = \
-                                ReqGateway(zmq_conn_string, ctx=self.ctx)
+                                ReqGateway(zmq_conn_string,
+                                           self.HWM,
+                                           ctx=self.ctx)
             else:
                 log.debug("spawning sub socket %s" ,zmq_conn_string) 
                 self.gateways[socket_type, zmq_conn_string] = \
-                                    SubGateway(zmq_conn_string, ctx=self.ctx)
-            spawn(self.gateways[socket_type, zmq_conn_string].run)
+                                    SubGateway(zmq_conn_string,
+                                               self.HWM,
+                                               ctx=self.ctx)
+            self.gateways[socket_type, zmq_conn_string].start()
             return self.gateways[socket_type, zmq_conn_string]
 
     def shutdown(self):
@@ -66,7 +71,7 @@ class ZmqGateway(WebProxyHandler):
         super(ZmqGateway, self).__init__()
         self.zmq_conn_string = zmq_conn_string
         self.ctx = ctx
-
+        
     def send_proxy(self, identity, msg):
         try:
             self.proxies[identity].send_web(msg)
@@ -76,10 +81,12 @@ class ZmqGateway(WebProxyHandler):
             self.deregister(identity)
             
 class SubGateway(ZmqGateway):
-    def __init__(self, zmq_conn_string, ctx=None):
+    def __init__(self, zmq_conn_string, HWM, ctx=None):
         super(SubGateway, self).__init__(zmq_conn_string, ctx=ctx)
         self.s = ctx.socket(zmq.SUB)
         self.s.setsockopt(zmq.SUBSCRIBE, '');
+        if HWM:
+            self.s.setsockopt(zmq.HWM, HWM);
         self.s.connect(zmq_conn_string)
 
     def run(self):
@@ -94,17 +101,26 @@ class SubGateway(ZmqGateway):
                 log.exception(e)
                 continue
 
+    def start(self):
+        self.thread = spawn(self.run)
+        
 class ReqGateway(ZmqGateway):
-    def __init__(self, zmq_conn_string, ctx=None):
+    def __init__(self, zmq_conn_string, HWM, ctx=None):
         super(ReqGateway, self).__init__(zmq_conn_string, ctx=ctx)
         self.s = ctx.socket(zmq.XREQ)
+        if HWM:
+            self.s.setsockopt(zmq.HWM, 100);
         self.s.connect(zmq_conn_string)
+        self.queue = Queue.Queue()
 
     def send(self, identity, msg):
+        self.queue.put((identity, msg))
+
+    def _send(self, identity, msg):
         #append null string to front of message, just like REQ
         #embed identity the same way
         self.s.send_multipart([str(identity), '', str(msg)])
-        log.debug('reqgateway, sent %s', msg)
+        #log.debug('reqgateway, sent %s', msg)
 
     def handle_request(self, msg):
         #strip off the trailing string
@@ -112,7 +128,11 @@ class ReqGateway(ZmqGateway):
         msg = msg[-1]
         self.send_proxy(identity, msg)
 
-    def run(self):
+    def start(self):
+        self.thread_recv = spawn(self.run_recv_zmq)
+        self.thread_send = spawn(self.run_send_zmq)
+        
+    def run_recv_zmq(self):
         while True:
             msg = self.s.recv_multipart(copy=True)
             try:
@@ -121,6 +141,15 @@ class ReqGateway(ZmqGateway):
             except Exception as e:
                 log.exception(e)
                 continue
+
+    def run_send_zmq(self):
+        while True:
+            try:
+                obj = self.queue.get()
+                identity, msg = obj
+                self._send(identity, msg)
+            except:
+                pass
             
 class BridgeWebProxyHandler(WebProxyHandler):
     """
@@ -184,7 +213,7 @@ class BridgeWebProxyHandler(WebProxyHandler):
     def run(self):
         while True:
             msg = self.ws.receive()
-            log.debug('ws received %s', msg)
+            #log.debug('ws received %s', msg)
             if msg is None:
                 self.close()
                 break
@@ -237,8 +266,9 @@ Gevent wsgi handler - the main server.  once instnace of this per process
 """
 class WsgiHandler(object):
     bridge_class = BridgeWebProxyHandler
+    HWM = 100
     def __init__(self):
-        self.zmq_gateway_factory = ZmqGatewayFactory()
+        self.zmq_gateway_factory = ZmqGatewayFactory(self.HWM)
         
     def websocket_allowed(self, environ):
         return True
@@ -267,6 +297,8 @@ if __name__ == "__main__":
                                # keyfile='/etc/nginx/server.key',
                                # certfile='/etc/nginx/server.crt',
                                handler_class=WebSocketHandler)
+    import gc
+    gc.disable()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
