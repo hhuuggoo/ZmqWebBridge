@@ -1,6 +1,8 @@
+import gevent
+import gevent.monkey
+gevent.monkey.patch_all()
 from geventwebsocket.handler import WebSocketHandler
 from gevent import pywsgi
-import gevent
 from gevent_zeromq import zmq
 import logging
 log = logging.getLogger(__name__)
@@ -297,10 +299,8 @@ if __name__ == "__main__":
                                # keyfile='/etc/nginx/server.key',
                                # certfile='/etc/nginx/server.crt',
                                handler_class=WebSocketHandler)
-    import gc
-    gc.disable()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print 'Shutting down gracefully.'
-        server.kill()
+        server.zmq_gateway_factory.shutdown()
