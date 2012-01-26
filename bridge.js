@@ -61,11 +61,13 @@ zmq.Context.prototype.send = function(msg){
 	this.send_buffer.push(msg);
     }
 }
+
 zmq.Socket = function(ctx){
     this.ctx = ctx
     this.identity = zmq.uuid();
 }
-zmq.Socket.prototype.get_message = function(msg, msg_type){
+
+zmq.Socket.prototype.construct_message = function(msg, msg_type){
     //your message should be a string
     //constructs a message object, as json
     //this will be serialized before it goes to the wire
@@ -86,7 +88,7 @@ zmq.ReqSocket = function(ctx){
 }
 zmq.ReqSocket.prototype = new zmq.Socket();
 zmq.ReqSocket.prototype.send = function(msg, callback, msg_type){
-    var msgobj = this.get_message(msg, msg_type)
+    var msgobj = this.construct_message(msg, msg_type)
     this._send(JSON.stringify(msgobj), callback);
 }
 zmq.ReqSocket.prototype._send = function(msg, callback){
@@ -148,3 +150,16 @@ zmq.SubSocket.prototype._handle = function(msg){
 
 
 
+zmq.RPCClient = function(socket){
+    this.socket = socket;
+}
+zmq.RPCClient.prototype.rpc = function(funcname, args, kwargs, callback){
+    msg = {'funcname' : funcname,
+	   'args' : args,
+	   'kwargs' : kwargs}
+    var wrapped_callback = function (msg){
+	var msgobj = JSON.parse(msg);
+	callback(msgobj['returnval']);
+    }
+    this.socket.send(JSON.stringify(msg), wrapped_callback);
+}
