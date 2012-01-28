@@ -136,7 +136,7 @@ register with WebProxyHandler, and deregister with them
   socket, and when a connection request is received, grabs the appropriate
   zeromq gateway from the factory.  It also registers the proxy with this
   object nad the zeromq gateway
-		  
+
 * SocketProxy
 
   1. ReqSocketProxy
@@ -148,3 +148,82 @@ register with WebProxyHandler, and deregister with them
   the gateways use this object to get to the appropriate opposing gateway
   you have one instance of this, for every fake zeromq socket you have on the
   js side	
+
+=============
+RPC Interface
+=============
+
+
+We've also built in an RPC interface
+
+Request Reply
+-------------
+
+* Python
+
+  You define functions that you want to be able to call from js.  the functions
+  can be called with args, and kwargs.   the return value is passed down
+  to the JS callback.  a list of authorized functions is specified for each
+  RPC server, if it is None then all functions are fair game.  the can_function
+  prefixed  function is called, if it exists, and if it returns false, 
+  we don't execute the main function.   This is where you would 
+  build in any method level
+  authentication
+
+  ::
+
+    class TestRPC(bridgeutils.GeventZMQRPC):
+	authorized_functions = ['echo', 'add_user']
+	def echo(self, msg):
+	    return msg
+
+	def add_user(self, username, password, type='boy'):
+	    return {'status' : "success"}
+
+	def can_add_user(self, username, password, type='boy'):
+	    return True	 
+
+* JS
+
+  Javascript RPC client is instantiated with an instance of the socket.
+  rpc takes 4 arguments, function name, args, kwargs, and the callback.
+  the callback gets the object that was returned - any JSON object is 
+  supported
+
+  ::
+
+    rpc_client = new zmq.RPCClient(socket);
+    rpc_client.rpc('echo', 'hello!', {}, function(response){
+						console.log(response);
+						});
+    rpc_client.rpc('echo', 'hello!', 
+    	 	     {type : 'girl'}, 
+		   function(response){
+                       console.log(response['status']);
+		   });
+
+
+Pub Sub
+-------
+
+Pub sub allows the server, to remotely call functions on the client - though 
+since the communciation is one way, there is no return value.  Also since
+JS does not support key word args, we only support positional arguments
+
+* Python
+
+  ::
+    
+    rpc_client = bridgeutils.PubSubRPCCLient(socket)
+    rpc_client.rpc('add', 1, 2)
+    
+* JS
+
+  ::
+
+    rpc_server = zmq.PubRPCServer()
+    rpc_server.prototype.add = function(first, second){
+        console.log(first + second);
+    }   
+
+
