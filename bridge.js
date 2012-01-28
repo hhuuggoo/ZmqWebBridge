@@ -163,3 +163,19 @@ zmq.RPCClient.prototype.rpc = function(funcname, args, kwargs, callback){
     }
     this.socket.send(JSON.stringify(msg), wrapped_callback);
 }
+
+zmq.PubRPCServer = function(socket){
+    this.socket = socket;
+    var that = this;
+    if (socket){
+	socket.onmessage = function(msg){
+	    that.handle_pub(msg);
+	}
+    }
+}
+zmq.PubRPCServer.prototype.handle_pub = function(msg){
+    var msgobj = JSON.parse(msg)
+    var funcname = msgobj['funcname']
+    var args = msgobj['args'] || [];
+    this[funcname].apply(this, args);
+}

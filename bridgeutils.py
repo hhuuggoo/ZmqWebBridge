@@ -65,5 +65,18 @@ class GeventZMQRPC(object):
         
                        
         
+class PubSubRPCClient(object):
+    def __init__(self, socket):
+        self.socket = socket
+        self.queue = gevent.queue.Queue()
         
+    def rpc(self, funcname, *args, **kwargs):
+        msg = {'funcname' : funcname,
+               'args' : args}
+        self.queue.put(jsonapi.dumps(msg))
+
+    def run_pub(self):
+        while True:
+            msg = self.queue.get()
+            self.socket.send(msg)
                         
