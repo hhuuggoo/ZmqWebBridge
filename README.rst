@@ -125,19 +125,21 @@ constructs a new onew
 WebProxyHandler - generic handler which works with proxy objects, proxies can
 register with WebProxyHandler, and deregister with them
 
-ZmqGateway - proxy handler which handles the zeromq side of things.
-  SubGateway - sub socket version
-  ReqGateway - request socket version
+* ZmqGateway - proxy handler which handles the zeromq side of things.
 
-BridgeWebProxyHandler - proxy handler which handles the web socket side of things.
+  1. SubGateway - sub socket version
+
+  2. ReqGateway - request socket version
+
+* BridgeWebProxyHandler - proxy handler which handles the web socket side of things.
   you have one of these per web socket connection.  it listens on the web
   socket, and when a connection request is received, grabs the appropriate
   zeromq gateway from the factory.  It also registers the proxy with this
   object nad the zeromq gateway
 		  
-SocketProxy
-  ReqSocketProxy
-  SubSocketProxy
+*SocketProxy
+  1. ReqSocketProxy
+  2. SubSocketProxy
     these proxy objects below are dumb objects.  all they do is manage
     relationships with their reqpective websocket and zeromq gateways.
     the gateways use this object to get to the appropriate opposing gateway
