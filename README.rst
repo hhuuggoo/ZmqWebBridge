@@ -137,11 +137,14 @@ register with WebProxyHandler, and deregister with them
   zeromq gateway from the factory.  It also registers the proxy with this
   object nad the zeromq gateway
 		  
-*SocketProxy
+* SocketProxy
+
   1. ReqSocketProxy
+
   2. SubSocketProxy
-    these proxy objects below are dumb objects.  all they do is manage
-    relationships with their reqpective websocket and zeromq gateways.
-    the gateways use this object to get to the appropriate opposing gateway
-    you have one instance of this, for every fake zeromq socket you have on the
-    js side	
+
+  these proxy objects below are dumb objects.  all they do is manage
+  relationships with their reqpective websocket and zeromq gateways.
+  the gateways use this object to get to the appropriate opposing gateway
+  you have one instance of this, for every fake zeromq socket you have on the
+  js side	
