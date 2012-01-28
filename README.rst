@@ -14,9 +14,8 @@ The javascript client code sets up a websocket, which communicates with the pyth
 
 * I recently tried to deploy this on another machine, and it would not work with the pyzmq installed there, I tracked it down to some versioning issues which caused XREQs and XREPs not to function properly, reinstalling fresh pyzmq from git (and stable zeromq 2.1) solved the issue.  I'll try adding a test (there are no tests yet) which will tell you if your XREQs and XREPs are working properly
 
-======
 Syntax
-======
+------
 
 js reqrep:
 ----------
@@ -110,9 +109,8 @@ while(True):
 
 
 
-=====================
 bridge code structure
-=====================
+---------------------
 ZmqGatewayFactory - returns an existing zeromq gateway if we have one, otherwise
 constructs a new onew
 
