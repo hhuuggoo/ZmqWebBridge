@@ -60,32 +60,32 @@ class ReqRepTest(unittest.TestCase):
         assert payload == 'echome'
         
 
-# class SubTest(unittest.TestCase):
-#     def setUp(self):
-#         self.ctx = zmq.Context()
-#         self.pub = self.ctx.socket(zmq.PUB)
-#         self.pub_port = self.pub.bind_to_random_port("tcp://127.0.0.1")
-#         self.app = bridge.WsgiHandler()
-#         self.server = pywsgi.WSGIServer(('0.0.0.0', 9999), self.app.wsgi_handle,
-#                                         handler_class=WebSocketHandler)
-#         self.bridge_thread = spawn(self.server.serve_forever)
+class SubTest(unittest.TestCase):
+    def setUp(self):
+        self.ctx = zmq.Context()
+        self.pub = self.ctx.socket(zmq.PUB)
+        self.pub_port = self.pub.bind_to_random_port("tcp://127.0.0.1")
+        self.app = bridge.WsgiHandler()
+        self.server = pywsgi.WSGIServer(('0.0.0.0', 9999), self.app.wsgi_handle,
+                                        handler_class=WebSocketHandler)
+        self.bridge_thread = spawn(self.server.serve_forever)
 
-#     def tearDown(self):
-#         self.bridge_thread.kill()
+    def tearDown(self):
+        self.bridge_thread.kill()
 
-#     def test_sub(self):
-#         sock = connect(self.server, "ws://127.0.0.1:9999",
-#                        'tcp://127.0.0.1:' + str(self.pub_port),
-#                        zmq.SUB)
-#         self.pub.send('hellohello')
-#         msg = sock.recv()
-#         msgobj = simplejson.loads(msg)
-#         assert msgobj['identity'] == 'testidentity'
-#         assert msgobj['content'] == 'hellohello'
-#         self.pub.send('boingyboingy')
-#         msg = sock.recv()
-#         msgobj = simplejson.loads(msg)
-#         assert msgobj['identity'] == 'testidentity'
-#         assert msgobj['content'] == 'boingyboingy'
+    def test_sub(self):
+        sock = connect(self.server, "ws://127.0.0.1:9999",
+                       'tcp://127.0.0.1:' + str(self.pub_port),
+                       zmq.SUB)
+        self.pub.send('hellohello')
+        msg = sock.recv()
+        msgobj = simplejson.loads(msg)
+        assert msgobj['identity'] == 'testidentity'
+        assert msgobj['content'] == 'hellohello'
+        self.pub.send('boingyboingy')
+        msg = sock.recv()
+        msgobj = simplejson.loads(msg)
+        assert msgobj['identity'] == 'testidentity'
+        assert msgobj['content'] == 'boingyboingy'
         
         
