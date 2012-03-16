@@ -80,4 +80,33 @@ class SubTest(unittest.TestCase):
         assert msgobj['identity'] == 'testidentity'
         assert msgobj['content'] == 'boingyboingy'
         
+class ClientRepTest(unittest.TestCase):
+    def setUp(self):
+        self.ctx = zmq.Context()
+        self.reqrep = self.ctx.socket(zmq.REQ)
+        self.reqrep.connect("tcp://127.0.0.1:101010")
+        self.req_port = 101010
+        self.app = bridge.WsgiHandler()
+        self.server = pywsgi.WSGIServer(('0.0.0.0', port), self.app.wsgi_handle,
+                                        handler_class=WebSocketHandler)
+        self.bridge_thread = spawn(self.server.serve_forever)
+        self.ws_thread = spawn(self.ws_reqrep)
+
         
+    def tearDown(self):
+        self.bridge_thread.kill()
+        self.ws_thread.kill()
+    
+    def ws_reqrep(self):
+        sock = connect(self.server, "ws://127.0.0.1:" + str(port),
+                       'tcp://127.0.0.1:' + str(self.req_port),
+                       zmq.REP)
+        while True:
+            msg = sock.recv()
+            msgobj = simplejson.loads(msg)
+            sock.send(msg)
+            
+    def test_req_rep(self):
+        self.reqrep.send_multipart(['hello', 'testidentity'])
+        a = self.reqrep.recv_multipart()
+        assert a[0] == 'hello'
