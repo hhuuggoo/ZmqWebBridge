@@ -1,3 +1,4 @@
+
 zmq = {}
 zmq.SUB = 2
 zmq.REQ = 3
@@ -29,7 +30,12 @@ zmq.Context = function(ws_conn_string){
     }
     this.s.onmessage = function(msg){
 	var msgobj = JSON.parse(msg.data);
-	that.sockets[msgobj['identity']]._handle(msgobj['content'])
+	var socket = that.sockets[msgobj['identity']]
+	if (socket.connected){
+	    socket._handle(msgobj['content']);
+	}else if (msgobj['msg_type'] === 'connection_reply'){
+	    that.onconnect(socket, msgobj['content']);
+	}
     }
     this.s.onopen = function(){
 	that.connected = true;
@@ -41,6 +47,25 @@ zmq.Context = function(ws_conn_string){
     this.connected = false;
     this.send_buffer = [];
 }
+    
+zmq.Context.prototype.connect = function(socket, zmq_conn_string, auth){
+    auth['zmq_conn_string'] = zmq_conn_string;
+    auth['socket_type'] = socket.socket_type;
+    var msg = JSON.stringify(auth)
+    var msgobj = socket.construct_message(msg, 'connect')
+    msg = JSON.stringify(msgobj);
+    this.send(msg);
+}
+    
+zmq.Context.prototype.onconnect = function(socket, msg){
+    var msgobj = JSON.parse(msg);
+    if (msgobj['status'] === 'success'){
+	socket.connected = true;
+    }else{
+	socket.connected = false;
+    }
+}
+
 zmq.Context.prototype.Socket = function(socket_type){
     //contexts are also a factory for sockets, just like
     //in normal zeromq
@@ -80,6 +105,11 @@ zmq.Socket.prototype.construct_message = function(msg, msg_type){
 	'msg_type' : msg_type
     }
 }
+
+zmq.Socket.prototype.connect = function(zmq_conn_string, auth){
+    this.ctx.connect(this, zmq_conn_string, auth);
+}
+
 zmq.ReqSocket = function(ctx){
     zmq.Socket.call(this, ctx);
     this.reqrep_buffer = [];
@@ -117,42 +147,39 @@ zmq.ReqSocket.prototype._handle = function(msg){
     this._send_buffer();
 }
 
-zmq.ReqSocket.prototype.connect = function(zmq_conn_string, auth){
-    auth['zmq_conn_string'] = zmq_conn_string;
-    auth['socket_type'] = this.socket_type;
-    var msg = JSON.stringify(auth)
-    var that = this;
-    this.send(msg, function(x){
-	var status = JSON.parse(x);
-	if (status['status'] === 'success'){
-	    that.connected = true;
-	}else{
-	    that.connected = false;
-	    //alert ('problem connecting');
-	}
-    }, 'connect');
-}
 
 zmq.SubSocket = function(ctx){
     zmq.ReqSocket.call(this, ctx);
     this.socket_type = zmq.SUB;
 }
+
 //prototype from req socket, because we need the auth functionality
-zmq.SubSocket.prototype = new zmq.ReqSocket();
+zmq.SubSocket.prototype = new zmq.Socket();
 zmq.SubSocket.prototype._handle = function(msg){
+    this.onmessage(msg);
+}
+
+zmq.RepSocket = function(ctx){
+    zmq.ReqSocket.call(this, ctx);
+    this.socket_type = zmq.REP;
+},
+zmq.RepSocket.prototype._handle = function(msg){
     //only used for connect
     if (!this.connected){
 	zmq.ReqSocket.prototype._handle.call(this, msg);
     }else{
-	this.onmessage(msg);
+	var msgobj = JSON.parse(msg);
+	var addresss = msgobj[0];
+	this.onmessage(msgobj[msgobj.length - 1]);
+	
     }
 }
-
 
 
 zmq.RPCClient = function(socket){
     this.socket = socket;
 }
+    
 zmq.RPCClient.prototype.rpc = function(funcname, args, kwargs, callback){
     msg = {'funcname' : funcname,
 	   'args' : args,
@@ -178,4 +205,21 @@ zmq.PubRPCServer.prototype.handle_pub = function(msg){
     var funcname = msgobj['funcname']
     var args = msgobj['args'] || [];
     this[funcname].apply(this, args);
+}
+
+zmq.RPCServer = function(socket){
+    this.socket = socket;
+    var that = this;
+    if (socket){
+	socket.onmessage = function(msg){
+	    that.handle_pub(msg);
+	}
+    }
+}
+    
+zmq.RPCServer.prototype.handle_pub = function(msg){
+    var msgobj = JSON.parse(msg)
+    var funcname = msgobj['funcname']
+    var args = msgobj['args'] || [];
+    retval = this[funcname].apply(this, args);
 }

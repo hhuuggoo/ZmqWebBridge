@@ -252,10 +252,10 @@ class BridgeWebProxyHandler(WebProxyHandler):
             if self.zmq_allowed(content):
                 self.connect(identity, content)
                 content = simplejson.dumps({'status' : 'success'})
-                self.send(identity, content)
+                self.send(identity, content, msg_type='connection_reply')
             else:
                 content = simplejson.dumps({'status' : 'error'})
-                self.send(identity, content)
+                self.send(identity, content, msg_type='connection_reply')
         else:
             self.send_proxy(identity, content)
             
@@ -267,10 +267,14 @@ class BridgeWebProxyHandler(WebProxyHandler):
             log.exception(e)
             self.deregister(identity)
 
-    def send(self, identity, msg):
-        log.debug('ws sent %s', msg)
-        self.ws.send(simplejson.dumps({'identity' : identity,
-                                       'content' : msg}))
+    def send(self, identity, msg, msg_type=None):
+        json_msg = {'identity' : identity,
+                    'content' : msg}
+        if msg_type is not None:
+            json_msg['msg_type'] = msg_type
+        log.debug('ws sent %s', json_msg)
+        self.ws.send(simplejson.dumps(json_msg))
+        
     def run(self):
         while True:
             msg = self.ws.receive()

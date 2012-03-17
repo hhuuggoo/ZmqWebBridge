@@ -21,3 +21,5 @@ sub2.onmessage = function(x){
     console.log(['not alowed!', x]);
 }
 sub2.connect("tcp://127.0.0.1:10002", {'username':'nonhugo'});
+
+
