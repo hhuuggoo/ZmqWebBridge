@@ -26,8 +26,19 @@ sub2.connect("tcp://127.0.0.1:10002", {'username':'nonhugo'});
 rep = context.Socket(zmq.REP);
 reqrep.send('IDENT ' + rep.identity, function(x){console.log(x)});
 rep.connect("tcp://127.0.0.1:10003", {'username' : 'hugo'});
-rep.onmessage = function(x){
-    console.log(x);
-    //echo
-    rep.send(x)
+// rep.onmessage = function(x){
+//     console.log(x);
+//     //echo
+//     rep.send(x)
+// }
+
+RPC = function(socket){
+    zmq.RPCServer.call(this, socket);
 }
+RPC.prototype = new zmq.RPCServer();
+
+RPC.prototype.echo = function(arg){
+    return arg;
+}
+
+var rpc = new RPC(rep);

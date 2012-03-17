@@ -238,14 +238,15 @@ zmq.RPCServer = function(socket){
     var that = this;
     if (socket){
 	socket.onmessage = function(msg){
-	    that.handle_pub(msg);
+	    that.handle(msg);
 	}
     }
 }
     
-zmq.RPCServer.prototype.handle_pub = function(msg){
+zmq.RPCServer.prototype.handle = function(msg){
     var msgobj = JSON.parse(msg)
     var funcname = msgobj['funcname']
     var args = msgobj['args'] || [];
     retval = this[funcname].apply(this, args);
+    this.socket.send(JSON.stringify({'returnval' : retval}));
 }

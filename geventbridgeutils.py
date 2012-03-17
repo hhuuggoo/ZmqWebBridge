@@ -1,4 +1,5 @@
 import gevent
+import gevent.queue
 from gevent_zeromq import zmq
 import logging
 log = logging.getLogger(__name__)
@@ -82,23 +83,25 @@ class PubSubRPCClient(object):
                         
 
 class GeventRPCClient(object):
-    def __init__(self, socket, timeout=1.0):
+    def __init__(self, socket, ident, timeout=1.0):
         self.socket = socket
+        self.ident = ident
         self.queue = gevent.queue.Queue()
         self.timeout = timeout
         
     def rpc(self, funcname, *args, **kwargs):
         msg = {'funcname' : funcname,
                'args' : args}
-        self.queue.put(jsonapi.dumps(msg))
+        self.socket.send_multipart([jsonapi.dumps(msg), self.ident])
         data = []
         def recv():
             val = self.socket.recv()
             data.append(val)
         recv_t = gevent.spawn(recv)
-        recv_t.kill(timeout=self.timeout)
+        recv_t.join(timeout=self.timeout)
+        recv_t.kill()
         if len(data) == 1:
-            return data[0]
+            return jsonapi.loads(data[0])['returnval']
         else:
             return None
         
