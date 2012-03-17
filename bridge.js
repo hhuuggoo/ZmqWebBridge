@@ -2,6 +2,7 @@
 zmq = {}
 zmq.SUB = 2
 zmq.REQ = 3
+zmq.REP = 4
 zmq.uuid = function () {
     //from ipython project
     // http://www.ietf.org/rfc/rfc4122.txt
@@ -72,8 +73,10 @@ zmq.Context.prototype.Socket = function(socket_type){
     var fakesocket;
     if (socket_type === zmq.SUB){
 	fakesocket = new zmq.SubSocket(this);
-    }else{
+    }else if (socket_type === zmq.REQ){
 	fakesocket =  new zmq.ReqSocket(this);
+    }else if (socket_type === zmq.REP){
+	fakesocket =  new zmq.RepSocket(this);
     }
     this.sockets[fakesocket.identity] = fakesocket;
     return fakesocket;
@@ -162,19 +165,42 @@ zmq.SubSocket.prototype._handle = function(msg){
 zmq.RepSocket = function(ctx){
     zmq.ReqSocket.call(this, ctx);
     this.socket_type = zmq.REP;
+    this.in_buffer = [];
 },
-zmq.RepSocket.prototype._handle = function(msg){
-    //only used for connect
-    if (!this.connected){
-	zmq.ReqSocket.prototype._handle.call(this, msg);
+
+zmq.RepSocket.prototype = new zmq.Socket();
+
+zmq.RepSocket.prototype.send = function(msg){
+    //layer adressing information
+    var msg = [this.address, '', msg]
+    msg = JSON.stringify(msg);
+    var msgobj = this.construct_message(msg)
+    this.ctx.send(JSON.stringify(msgobj));
+    //this is a reply, so now we are no longer busy
+    this.busy = false;
+    //try to process in_buffer
+    this._recv_buffer();
+}
+zmq.RepSocket.prototype._recv_buffer = function(){
+    if (this.busy || this.in_buffer.length == 0){
+	return
     }else{
+	var msg = this.in_buffer[0];
+	this.in_buffer = this.in_buffer.slice(1);
+
+	this.busy = true;
 	var msgobj = JSON.parse(msg);
-	var addresss = msgobj[0];
-	this.onmessage(msgobj[msgobj.length - 1]);
-	
+	var address = msgobj[0];
+	var content = msgobj[msgobj.length - 1];
+	this.address = address;
+	this.onmessage(content);
     }
 }
 
+zmq.RepSocket.prototype._handle = function(msg){
+    this.in_buffer.push(msg);
+    this._recv_buffer();
+}
 
 zmq.RPCClient = function(socket){
     this.socket = socket;

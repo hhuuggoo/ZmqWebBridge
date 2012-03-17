@@ -20,6 +20,7 @@ class ZmqGatewayFactory(object):
         self.gateways = {}
         self.ctx = zmq.Context()
         self.HWM = HWM
+        
     def get(self, socket_type, zmq_conn_string):
         if (socket_type, zmq_conn_string) in self.gateways:
             gateway =  self.gateways[socket_type, zmq_conn_string]

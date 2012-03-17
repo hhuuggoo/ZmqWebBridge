@@ -10,7 +10,7 @@ class MyBridgeClass(bridge.BridgeWebProxyHandler):
         params = simplejson.loads(params)
         zmq_conn_string = params['zmq_conn_string']
         socket_type = params['socket_type']
-        print 'auth', params['username']
+        print 'auth', params['username'], params['socket_type']
         return params['username'] == 'hugo'
         
 

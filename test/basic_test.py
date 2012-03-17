@@ -103,6 +103,7 @@ class ClientRepTest(unittest.TestCase):
                        zmq.REP)
         while True:
             msg = sock.recv()
+            log.debug(msg)
             msgobj = simplejson.loads(msg)
             sock.send(msg)
             
@@ -110,3 +111,4 @@ class ClientRepTest(unittest.TestCase):
         self.reqrep.send_multipart(['hello', 'testidentity'])
         a = self.reqrep.recv_multipart()
         assert a[0] == 'hello'
+        assert False
