@@ -247,6 +247,10 @@ zmq.RPCServer.prototype.handle = function(msg){
     var msgobj = JSON.parse(msg)
     var funcname = msgobj['funcname']
     var args = msgobj['args'] || [];
-    retval = this[funcname].apply(this, args);
+    try{
+	retval = this[funcname].apply(this, args);
+    }catch(err){
+	retval = err;
+    }
     this.socket.send(JSON.stringify({'returnval' : retval}));
 }
