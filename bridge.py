@@ -362,7 +362,7 @@ class WsgiHandler(object):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     app = WsgiHandler()
-    server = pywsgi.WSGIServer(('0.0.0.0', 8000), app.wsgi_handle,
+    server = pywsgi.WSGIServer(('127.0.0.1', 8000), app.wsgi_handle,
                                # keyfile='/etc/nginx/server.key',
                                # certfile='/etc/nginx/server.crt',
                                handler_class=WebSocketHandler)
