@@ -16,8 +16,11 @@ import test_utils
 wait_until = test_utils.wait_until
 connect = test_utils.connect
 import bridgeutils
+import geventbridgeutils
 
-class TestRPC(bridgeutils.GeventZMQRPC):
+port = 10020
+
+class TestRPC(geventbridgeutils.GeventZMQRPC):
     def echo(self, msg):
         return msg
         
@@ -89,3 +92,35 @@ class SubTest(unittest.TestCase):
         assert msgobj['content'] == 'boingyboingy'
         
         
+        
+class ClientRepTest(unittest.TestCase):
+    def setUp(self):
+        self.ctx = zmq.Context()
+        self.reqrep = self.ctx.socket(zmq.REQ)
+        self.reqrep.connect("tcp://127.0.0.1:9010")
+        self.req_port = 9010
+        self.app = bridge.WsgiHandler()
+        self.server = pywsgi.WSGIServer(('0.0.0.0', port), self.app.wsgi_handle,
+                                        handler_class=WebSocketHandler)
+        self.bridge_thread = spawn(self.server.serve_forever)
+        self.ws_thread = spawn(self.ws_reqrep)
+
+        
+    def tearDown(self):
+        self.bridge_thread.kill()
+        self.ws_thread.kill()
+    
+    def ws_reqrep(self):
+        sock = connect(self.server, "ws://127.0.0.1:" + str(port),
+                       'tcp://127.0.0.1:' + str(self.req_port),
+                       zmq.REP)
+        while True:
+            msg = sock.recv()
+            log.debug(msg)
+            msgobj = simplejson.loads(msg)
+            sock.send(msg)
+            
+    def test_req_rep(self):
+        self.reqrep.send_multipart(['hello', 'testidentity'])
+        a = self.reqrep.recv_multipart()
+        assert a[0] == 'hello'
